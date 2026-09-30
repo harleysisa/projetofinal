@@ -1,0 +1,49 @@
+### 1. Testar Status da API (Root)
+GET http://127.0.0.1:5000/
+Accept: application/json
+
+### 2. Testar Ferramenta MCP: Listar Ofertas
+POST http://127.0.0.1:5000/mcp/v1/executar
+Content-Type: application/json
+
+{
+  "tool": "listar_ofertas",
+  "parameters": {
+    "categoria": "fruta"
+  }
+}
+
+### 3. Testar Ferramenta MCP: Cadastrar Produto
+POST http://127.0.0.1:5000/mcp/v1/executar
+Content-Type: application/json
+
+{
+  "tool": "cadastrar_produto",
+  "parameters": {
+    "produtor_id": "usr_produtor_teste_123",
+    "nome": "Banana Prata Climatizada",
+    "categoria": "fruta",
+    "preco_kg": 4.80,
+    "quantidade_kg": 350
+  }
+}
+
+### 4. Testar Ferramenta MCP: Consultar Qualidade / RAG
+POST http://127.0.0.1:5000/mcp/v1/executar
+Content-Type: application/json
+
+{
+  "tool": "consultar_qualidade",
+  "parameters": {
+    "duvida": "padrão de caixa do tomate italiano"
+  }
+}
+
+### 5. Testar Endpoint do Chat IA (Gemini / Assistente)
+POST http://127.0.0.1:5000/api/chat
+Content-Type: application/json
+
+{
+  "mensagem": "Quais são os produtos de frutas disponíveis no mercado?",
+  "produtor_id": "usr_teste_123"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "CEASA Virtual",
+  "short_name": "CEASAVirtual",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#064e3b",
+  "theme_color": "#047857",
+  "description": "Plataforma PWA para comercialização de hortifrúti diretamente do produtor com IA Gemini.",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2909/2909808.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2909/2909808.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

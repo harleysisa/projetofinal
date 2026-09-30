@@ -1,0 +1,15 @@
+# Ambientes Virtuais
+venv/
+.env
+__pycache__/
+*.pyc
+
+# Credenciais e Chaves Sensíveis
+firebase-key.json
+Backend/firebase-key.json
+*.json.key
+
+# IDEs e Sistema
+.vscode/
+.idea/
+.DS_Store

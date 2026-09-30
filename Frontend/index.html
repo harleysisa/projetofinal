@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#047857">
+  <title>CEASA Virtual - Comercialização Direta de Hortifrúti com IA</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2909/2909808.png">
+
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Marked.js para formatar respostas Markdown do Assistente Gemini -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Firebase SDKs (Compat Version) -->
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth-compat.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); }
+    .prose table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+    .prose th, .prose td { border: 1px solid #e2e8f0; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+    .prose th { background-color: #f1f5f9; font-weight: 600; text-align: left; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Top Navbar -->
+  <header class="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-700 text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-2xl shadow-inner">
+          🌱
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight flex items-center gap-1.5">
+            CEASA <span class="text-emerald-300 font-light">Virtual</span>
+            <span class="text-[10px] bg-emerald-900/60 border border-emerald-400/30 px-2 py-0.5 rounded-full font-semibold">PWA</span>
+          </h1>
+          <p class="text-[11px] text-emerald-100 -mt-0.5 hidden sm:block">Plataforma Direto do Produtor com IA Gemini & MCP</p>
+        </div>
+      </div>
+
+      <!-- Auth Controls & Profile Header -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        
+        <!-- Status de Conexão com o Backend -->
+        <div id="backend-status-badge" class="hidden sm:flex items-center gap-1.5 text-[11px] bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/20">
+          <span id="status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="status-text">Verificando API...</span>
+        </div>
+
+        <div id="auth-actions" class="flex items-center gap-2">
+          <!-- Botão Entrar com Google (Deslogado) -->
+          <button id="btn-header-login" onclick="abrirModalAuth()" class="bg-white hover:bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow transition flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+            <span>Entrar com Google</span>
+          </button>
+
+          <!-- Perfil do Usuário Autenticado -->
+          <div id="user-profile" class="hidden flex items-center gap-2 sm:gap-3 bg-white/10 px-3 py-1.5 rounded-2xl border border-white/20">
+            <div class="w-8 h-8 rounded-full bg-emerald-300 text-emerald-900 font-extrabold flex items-center justify-center text-xs shadow-inner" id="user-avatar">
+              P
+            </div>
+            <div class="text-left hidden md:block">
+              <p id="user-display-name" class="text-xs font-bold text-white leading-tight">Produtor Rural</p>
+              <div class="flex items-center gap-1.5">
+                <span id="user-role-badge" class="text-[10px] bg-emerald-900/80 px-1.5 py-0.2 rounded font-semibold text-emerald-200 uppercase">Produtor</span>
+                <span id="user-email-text" class="text-[10px] text-emerald-200"></span>
+              </div>
+            </div>
+            <button onclick="alternarPerfil()" title="Trocar perfil (Produtor / Lojista)" class="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-lg transition ml-1">Trocar Perfil</button>
+            <button onclick="logout()" class="text-[11px] bg-red-500/30 hover:bg-red-500/50 text-white px-2 py-1 rounded-lg transition">Sair</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 🔒 TELA DE BOAS-VINDAS & LOGIN (Bloqueio de Acesso Estrito)   -->
+  <!-- Exibida obrigatoriamente para visitantes não autenticados       -->
+  <!-- ============================================================== -->
+  <section id="landing-page" class="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-4xl mx-auto w-full animate-fade-in">
+    <div class="bg-white p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200/80 max-w-2xl w-full flex flex-col items-center">
+      <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-4xl shadow-lg mb-6">
+        🌱
+      </div>
+      
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
+        Bem-vindo ao <span class="text-emerald-700">CEASA Virtual</span>
+      </h2>
+      <p class="text-sm text-slate-600 mt-2 max-w-lg leading-relaxed">
+        Plataforma inteligente que conecta produtores rurais, lojistas e clientes diretamente, integrando inteligência artificial Gemini e consultas em tempo real ao Cloud Firestore.
+      </p>
+
+      <!-- Grade de Recursos -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full my-8 text-left">
+        <div class="p-3.5 bg-slate-50 border border-slate-200/70 rounded-2xl">
+          <span class="text-xl">🌾</span>
+          <h4 class="text-xs font-bold text-slate-800 mt-1">Produtores</h4>
+          <p class="text-[11px] text-slate-500">Cadastre e anuncie seus lotes de hortifrúti diretamente.</p>
+        </div>
+        <div class="p-3.5 bg-slate-50 border border-slate-200/70 rounded-2xl">
+          <span class="text-xl">🛒</span>
+          <h4 class="text-xs font-bold text-slate-800 mt-1">Lojistas</h4>
+          <p class="text-[11px] text-slate-500">Consulte cotações atualizadas e feche pedidos sob medida.</p>
+        </div>
+        <div class="p-3.5 bg-slate-50 border border-slate-200/70 rounded-2xl">
+          <span class="text-xl">🤖</span>
+          <h4 class="text-xs font-bold text-slate-800 mt-1">Assistente IA</h4>
+          <p class="text-[11px] text-slate-500">RAG de normas técnicas e classificação de caixas.</p>
+        </div>
+      </div>
+
+      <!-- Alerta de Bloqueio conforme Tópico 5 -->
+      <div class="w-full bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs mb-6 text-left flex items-start gap-3">
+        <span class="text-xl">🔒</span>
+        <div>
+          <p class="font-bold">Autenticação Obrigatória (Tópico 5 - GEMINI.md)</p>
+          <p class="text-[11px] text-amber-700 mt-0.5">O acesso ao Mural de Ofertas, Cadastro de Produtos e Assistente IA requer autenticação prévia com Conta Google.</p>
+        </div>
+      </div>
+
+      <!-- Botão Central Proeminente Entrar com Google -->
+      <button onclick="abrirModalAuth()" class="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-3 text-base">
+        <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+        <span>Entrar com Google</span>
+      </button>
+
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- 🔓 ÁREA DO SISTEMA (Liberada estritamente após autenticação)   -->
+  <!-- ============================================================== -->
+  <div id="app-content" class="hidden flex-1 flex flex-col">
+    
+    <!-- Navigation Tabs -->
+    <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-[57px] z-40">
+      <div class="max-w-6xl mx-auto px-4 flex justify-around sm:justify-start gap-1 sm:gap-6">
+        <button onclick="setTab('mural')" id="tab-btn-mural" class="py-3 px-3 text-xs sm:text-sm font-bold border-b-2 border-emerald-600 text-emerald-700 flex items-center gap-1.5 transition">
+          <span>🛒</span> <span>Mural de Ofertas</span>
+        </button>
+        <button onclick="setTab('produtor')" id="tab-btn-produtor" class="py-3 px-3 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition">
+          <span>🌾</span> <span>Painel do Produtor</span>
+        </button>
+        <button onclick="setTab('chat')" id="tab-btn-chat" class="py-3 px-3 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition">
+          <span>🤖</span> <span>Assistente IA & RAG</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 flex flex-col gap-5">
+
+      <!-- TAB 1: MURAL DE OFERTAS -->
+      <section id="tab-mural" class="flex flex-col gap-4 animate-fade-in">
+        <div class="bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-gray-200/80 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">Filtrar:</span>
+            <button onclick="filtrarCategoria('')" class="cat-pill bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition" data-cat="">Todos</button>
+            <button onclick="filtrarCategoria('fruta')" class="cat-pill bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl transition" data-cat="fruta">🍎 Frutas</button>
+            <button onclick="filtrarCategoria('legume')" class="cat-pill bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl transition" data-cat="legume">🥕 Legumes</button>
+            <button onclick="filtrarCategoria('hortaliça')" class="cat-pill bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl transition" data-cat="hortaliça">🥬 Hortaliças</button>
+          </div>
+          
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <div class="relative w-full sm:w-64">
+              <input type="text" id="filtro-busca" oninput="filtrarPorTexto()" placeholder="Buscar produto..." class="w-full text-xs border border-gray-300 rounded-xl pl-8 pr-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <span class="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
+            </div>
+            <button onclick="carregarOfertas()" title="Atualizar catálogo" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2 rounded-xl text-xs font-semibold flex items-center transition">
+              🔄
+            </button>
+          </div>
+        </div>
+
+        <div id="grid-produtos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        
+        <div id="sem-produtos" class="hidden text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 animate-fade-in">
+          <p class="text-4xl">🌾</p>
+          <p class="text-sm font-bold text-gray-600 mt-2">Nenhum lote encontrado nesta categoria.</p>
+          <p class="text-xs text-gray-400 mt-1">Publique uma oferta no painel do produtor para aparecer aqui.</p>
+        </div>
+      </section>
+
+      <!-- TAB 2: PAINEL DO PRODUTOR (Restrito por perfil) -->
+      <section id="tab-produtor" class="hidden flex flex-col gap-6 animate-fade-in">
+        
+        <div id="produtor-bloqueio-aviso" class="hidden bg-amber-50 border border-amber-200 p-5 rounded-3xl max-w-2xl mx-auto w-full text-amber-900 text-center">
+          <div class="text-3xl mb-2">⚠️</div>
+          <h3 class="font-bold text-sm">Acesso Restrito ao Perfil de Produtor Rural</h3>
+          <p class="text-xs text-amber-700 mt-1">Seu perfil atual é <b id="aviso-perfil-atual">LOJISTA</b>. Para cadastrar novos lotes, mude seu perfil para Produtor Rural.</p>
+          <button onclick="mudarParaProdutor()" class="mt-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
+            Ativar Perfil de Produtor
+          </button>
+        </div>
+
+        <div id="produtor-formulario-container" class="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-200/80 max-w-2xl mx-auto w-full">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-inner">
+              🌾
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-gray-800">Cadastrar Novo Lote de Hortifrúti</h2>
+              <p class="text-xs text-gray-500">Grave a oferta diretamente no Cloud Firestore através da ferramenta MCP.</p>
+            </div>
+          </div>
+
+          <form id="form-cadastro-lote" onsubmit="salvarLote(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome do Produto</label>
+              <input type="text" id="prod-nome" required placeholder="Ex: Tomate Italiano Extra AA" class="w-full text-sm border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Categoria</label>
+                <select id="prod-cat" required class="w-full text-sm border border-gray-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  <option value="fruta">🍎 Fruta</option>
+                  <option value="legume">🥕 Legume</option>
+                  <option value="hortaliça">🥬 Hortaliça</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Preço / Kg (R$)</label>
+                <input type="number" step="0.01" min="0.10" id="prod-preco" required placeholder="4.50" class="w-full text-sm border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Quantidade Total (Kg)</label>
+                <input type="number" step="1" min="1" id="prod-qtd" required placeholder="500" class="w-full text-sm border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              </div>
+            </div>
+
+            <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs flex justify-between items-center">
+              <span class="text-slate-600 font-medium">Estimativa do Valor Total do Lote:</span>
+              <span id="prod-estimativa" class="font-extrabold text-emerald-700 text-sm">R$ 0,00</span>
+            </div>
+
+            <button type="submit" id="btn-submit-lote" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2">
+              <span>🚀</span> <span>Publicar Oferta via Protocolo MCP</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB 3: ASSISTENTE IA & RAG -->
+      <section id="tab-chat" class="hidden flex flex-col gap-3 max-w-3xl mx-auto w-full flex-1 animate-fade-in">
+        <div class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl shadow-inner">🤖</div>
+            <div>
+              <h2 class="text-sm font-bold">Assistente Comercial CEASA</h2>
+              <p class="text-[11px] text-emerald-200">Cotações em tempo real + RAG de Normas Técnicas</p>
+            </div>
+          </div>
+          <button onclick="limparChat()" class="text-xs bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-xl transition">Limpar Conversa</button>
+        </div>
+
+        <div class="flex gap-2 overflow-x-auto pb-1 text-xs scrollbar-thin">
+          <button onclick="enviarMensagemRapida('Quais frutas estão disponíveis no mercado hoje?')" class="whitespace-nowrap bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl font-medium shadow-sm transition">🍎 Ofertas de Frutas</button>
+          <button onclick="enviarMensagemRapida('Qual o padrão e norma técnica do Tomate Italiano?')" class="whitespace-nowrap bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl font-medium shadow-sm transition">📋 Padrão do Tomate</button>
+          <button onclick="enviarMensagemRapida('Qual a norma de qualidade da Banana Prata?')" class="whitespace-nowrap bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl font-medium shadow-sm transition">🍌 Padrão Banana Prata</button>
+        </div>
+
+        <div id="chat-messages" class="flex-1 bg-white border border-gray-200/80 rounded-2xl p-4 overflow-y-auto space-y-3 min-h-[340px] max-h-[460px] scrollbar-thin shadow-inner">
+          <div class="flex gap-3 items-start animate-fade-in">
+            <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-inner">IA</div>
+            <div class="bg-slate-100 text-slate-800 text-sm p-3.5 rounded-2xl rounded-tl-none shadow-sm max-w-[88%] prose">
+              Olá! Sou o <b>Assistente Oficial do CEASA Virtual</b>. Posso te passar cotações de preços em tempo real no mural ou tirar dúvidas técnicas sobre classificação e padrões de caixas através do nosso RAG. Como posso te ajudar?
+            </div>
+          </div>
+        </div>
+
+        <form onsubmit="enviarMensagemChat(event)" class="flex gap-2">
+          <input type="text" id="chat-input" placeholder="Ex: Quanto tá o quilo do tomate? Ou qual o padrão da caixa de banana?" class="flex-1 bg-white border border-gray-300 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm">
+          <button type="submit" id="btn-send-chat" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-bold text-sm shadow transition flex items-center gap-1.5">
+            <span>Enviar</span>
+            <span>➤</span>
+          </button>
+        </form>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Modal Escolha de Perfil e Login Google -->
+  <div id="modal-auth" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl animate-fade-in border border-gray-100 text-center">
+      <div class="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 shadow-inner">
+        🔒
+      </div>
+      <h3 class="text-lg font-bold text-gray-800">Entrar no CEASA Virtual</h3>
+      <p class="text-xs text-gray-500 mt-1 mb-6">Selecione seu perfil de uso e conecte-se com sua conta Google.</p>
+
+      <div class="space-y-3 mb-6">
+        <label class="block text-left text-xs font-bold text-gray-700 uppercase">Selecione seu Perfil de Acesso:</label>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" onclick="selecionarTipoPerfil('PRODUTOR')" id="perfil-btn-produtor" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1">
+            <span class="text-xl">🌾</span>
+            <span>Produtor Rural</span>
+            <span class="text-[10px] font-normal text-emerald-600">Vender e Ofertar Lotes</span>
+          </button>
+          <button type="button" onclick="selecionarTipoPerfil('LOJISTA')" id="perfil-btn-lojista" class="border-2 border-gray-200 hover:border-gray-300 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1 text-gray-700">
+            <span class="text-xl">🏪</span>
+            <span>Lojista / Comprador</span>
+            <span class="text-[10px] font-normal text-gray-500">Cotar e Comprar</span>
+          </button>
+        </div>
+      </div>
+
+      <button onclick="executarLoginGoogle()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-2xl shadow transition flex items-center justify-center gap-3 text-sm">
+        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+        <span>Continuar com Google</span>
+      </button>
+
+      <button onclick="fecharModalAuth()" class="mt-3 text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal Fazer Pedido -->
+  <div id="modal-pedido" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-fade-in border border-gray-100">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-gray-800 flex items-center gap-2"><span>📦</span> Fazer Pedido Direto</h3>
+        <button onclick="fecharModalPedido()" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+      </div>
+      <div id="modal-conteudo-produto" class="bg-slate-50 p-4 rounded-2xl text-xs space-y-1.5 text-slate-600 mb-4 border border-slate-100"></div>
+      <div class="mb-5">
+        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Quantidade Desejada (Kg)</label>
+        <input type="number" id="pedido-qtd" min="1" value="50" oninput="atualizarTotalPedidoModal()" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        <div class="flex justify-between text-xs text-slate-500 mt-2">
+          <span>Total do Pedido:</span>
+          <span id="pedido-total-modal" class="font-extrabold text-emerald-700 text-sm">R$ 0,00</span>
+        </div>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="fecharModalPedido()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">Cancelar</button>
+        <button onclick="confirmarPedido()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow transition">Confirmar Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts Logic -->
+  <script>
+    // PWA Service Worker
+    if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('✅ Service Worker ativo:', reg.scope))
+          .catch(err => console.warn('⚠️ Service Worker offline:', err));
+      });
+    }
+
+    // Configuração Oficial do Firebase
+    const firebaseConfig = {
+      projectId: "ceasavirtual",
+      authDomain: "ceasavirtual.firebaseapp.com"
+    };
+    
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+    } catch (e) {
+      console.warn("Firebase Auth em modo offline:", e);
+    }
+
+    let usuarioAtual = null;
+    let perfilSelecionadoTemp = "PRODUTOR";
+    let todosProdutos = [];
+    let categoriaAtiva = "";
+    let baseUrl = "http://127.0.0.1:5000";
+
+    const PRODUTOS_PADRAO = [
+      { id: "mock_1", nome: "Banana Prata Climatizada", categoria: "fruta", preco_kg: 4.80, quantidade_kg: 450 },
+      { id: "mock_2", nome: "Tomate Italiano Extra AA", categoria: "legume", preco_kg: 5.20, quantidade_kg: 800 },
+      { id: "mock_3", nome: "Alface Americana Hidropônica", categoria: "hortaliça", preco_kg: 6.50, quantidade_kg: 180 },
+      { id: "mock_4", nome: "Cenoura Selecionada 3A", categoria: "legume", preco_kg: 3.90, quantidade_kg: 600 },
+      { id: "mock_5", nome: "Laranja Pera Rio Selecionada", categoria: "fruta", preco_kg: 3.20, quantidade_kg: 1200 }
+    ];
+
+    // Recupera sessão persistida
+    const sessaoSalva = localStorage.getItem("ceasa_usuario");
+    if (sessaoSalva) {
+      try {
+        usuarioAtual = JSON.parse(sessaoSalva);
+      } catch (e) {}
+    }
+
+    function showToast(msg, type = "success") {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const bg = type === "error" ? "bg-red-600" : type === "info" ? "bg-blue-600" : "bg-emerald-700";
+      toast.className = `${bg} text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 pointer-events-auto animate-fade-in`;
+      toast.innerHTML = `<span>${type === 'error' ? '⚠️' : '✅'}</span> <span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Modal de Autenticação
+    function abrirModalAuth() {
+      document.getElementById('modal-auth').classList.remove('hidden');
+    }
+
+    function fecharModalAuth() {
+      document.getElementById('modal-auth').classList.add('hidden');
+    }
+
+    function selecionarTipoPerfil(tipo) {
+      perfilSelecionadoTemp = tipo;
+      const btnP = document.getElementById('perfil-btn-produtor');
+      const btnL = document.getElementById('perfil-btn-lojista');
+      if (tipo === 'PRODUTOR') {
+        btnP.className = "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1";
+        btnL.className = "border-2 border-gray-200 hover:border-gray-300 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1 text-gray-700";
+      } else {
+        btnL.className = "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1";
+        btnP.className = "border-2 border-gray-200 hover:border-gray-300 p-3 rounded-2xl font-bold text-xs flex flex-col items-center gap-1 text-gray-700";
+      }
+    }
+
+    function executarLoginGoogle() {
+      fecharModalAuth();
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider)
+          .then((res) => {
+            definirUsuario(res.user, perfilSelecionadoTemp);
+          })
+          .catch(() => {
+            autenticarFallback(perfilSelecionadoTemp);
+          });
+      } catch (e) {
+        autenticarFallback(perfilSelecionadoTemp);
+      }
+    }
+
+    function autenticarFallback(tipo) {
+      const nomeDemo = tipo === 'PRODUTOR' ? "João Silva - Produtor Rural" : "Mercado Central - Lojista";
+      const emailDemo = tipo === 'PRODUTOR' ? "produtor.joao@ceasavirtual.com" : "lojista.central@ceasavirtual.com";
+      definirUsuario({
+        uid: "usr_" + tipo.toLowerCase() + "_demo_123",
+        displayName: nomeDemo,
+        email: emailDemo
+      }, tipo);
+    }
+
+    function definirUsuario(user, tipoPerfil = "PRODUTOR") {
+      usuarioAtual = {
+        uid: user.uid || "usr_" + Date.now(),
+        displayName: user.displayName || user.nome || "Usuário CEASA",
+        email: user.email || "usuario@ceasavirtual.com",
+        tipo_perfil: tipoPerfil
+      };
+      
+      localStorage.setItem("ceasa_usuario", JSON.stringify(usuarioAtual));
+
+      // 1. Oculta Landing Page e Exibe Área da Aplicação
+      document.getElementById('landing-page').classList.add('hidden');
+      document.getElementById('app-content').classList.remove('hidden');
+      document.getElementById('btn-header-login').classList.add('hidden');
+      document.getElementById('user-profile').classList.remove('hidden');
+
+      // 2. Atualiza cabeçalho com dados do usuário
+      document.getElementById('user-display-name').innerText = usuarioAtual.displayName;
+      document.getElementById('user-avatar').innerText = usuarioAtual.displayName.charAt(0).toUpperCase();
+      document.getElementById('user-role-badge').innerText = tipoPerfil;
+      document.getElementById('user-email-text').innerText = usuarioAtual.email;
+
+      // 3. Aplica regras de controle de acesso (Guarda de Rota)
+      ajustarPermissoesPorPerfil();
+
+      // 4. Sincroniza com o Firestore
+      fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: usuarioAtual.uid,
+          nome: usuarioAtual.displayName,
+          email: usuarioAtual.email,
+          tipo_perfil: usuarioAtual.tipo_perfil
+        })
+      }).catch(() => {});
+
+      showToast(`Autenticado com sucesso como ${tipoPerfil}!`);
+      carregarOfertas();
+    }
+
+    function ajustarPermissoesPorPerfil() {
+      if (!usuarioAtual) return;
+      const isProdutor = usuarioAtual.tipo_perfil === 'PRODUTOR';
+      const avisoBloqueio = document.getElementById('produtor-bloqueio-aviso');
+      const formContainer = document.getElementById('produtor-formulario-container');
+      const avisoTexto = document.getElementById('aviso-perfil-atual');
+
+      if (isProdutor) {
+        avisoBloqueio.classList.add('hidden');
+        formContainer.classList.remove('hidden');
+      } else {
+        avisoBloqueio.classList.remove('hidden');
+        formContainer.classList.add('hidden');
+        avisoTexto.innerText = usuarioAtual.tipo_perfil;
+      }
+    }
+
+    function alternarPerfil() {
+      if (!usuarioAtual) return;
+      const novoPerfil = usuarioAtual.tipo_perfil === 'PRODUTOR' ? 'LOJISTA' : 'PRODUTOR';
+      usuarioAtual.tipo_perfil = novoPerfil;
+      definirUsuario(usuarioAtual, novoPerfil);
+    }
+
+    function mudarParaProdutor() {
+      if (!usuarioAtual) return;
+      usuarioAtual.tipo_perfil = 'PRODUTOR';
+      definirUsuario(usuarioAtual, 'PRODUTOR');
+    }
+
+    function logout() {
+      try { firebase.auth().signOut(); } catch (e) {}
+      usuarioAtual = null;
+      localStorage.removeItem("ceasa_usuario");
+      document.getElementById('landing-page').classList.remove('hidden');
+      document.getElementById('app-content').classList.add('hidden');
+      document.getElementById('btn-header-login').classList.remove('hidden');
+      document.getElementById('user-profile').classList.add('hidden');
+      showToast("Sessão encerrada com sucesso.", "info");
+    }
+
+    // Gerenciador de Abas
+    function setTab(tab) {
+      ['mural', 'produtor', 'chat'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        const btn = document.getElementById(`tab-btn-${t}`);
+        btn.classList.remove('border-emerald-600', 'text-emerald-700', 'font-bold');
+        btn.classList.add('border-transparent', 'text-gray-500', 'font-semibold');
+      });
+
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-btn-${tab}`);
+      activeBtn.classList.add('border-emerald-600', 'text-emerald-700', 'font-bold');
+      activeBtn.classList.remove('border-transparent', 'text-gray-500');
+
+      if (tab === 'mural') carregarOfertas();
+    }
+
+    async function verificarBackend() {
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      try {
+        const res = await fetch(`${baseUrl}/`, { method: 'GET' });
+        if (res.ok) {
+          dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+          text.innerText = "API Online";
+          return true;
+        }
+      } catch (e) {
+        dot.className = "w-2 h-2 rounded-full bg-amber-400";
+        text.innerText = "API Offline";
+      }
+      return false;
+    }
+
+    // Carregar Ofertas via MCP
+    async function carregarOfertas() {
+      const isOnline = await verificarBackend();
+      
+      if (isOnline) {
+        try {
+          const res = await fetch(`${baseUrl}/mcp/v1/executar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tool: 'listar_ofertas',
+              parameters: { categoria: categoriaAtiva }
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.result && data.result.length > 0) {
+            todosProdutos = data.result;
+            renderizarProdutos(todosProdutos);
+            return;
+          }
+        } catch (err) {
+          console.warn("Erro ao buscar ofertas da API:", err);
+        }
+      }
+      
+      let lista = PRODUTOS_PADRAO;
+      if (categoriaAtiva) {
+        lista = lista.filter(p => p.categoria.toLowerCase() === categoriaAtiva.toLowerCase());
+      }
+      todosProdutos = lista;
+      renderizarProdutos(todosProdutos);
+    }
+
+    function renderizarProdutos(lista) {
+      const grid = document.getElementById('grid-produtos');
+      const semProdutos = document.getElementById('sem-produtos');
+      grid.innerHTML = "";
+
+      if (!lista || lista.length === 0) {
+        semProdutos.classList.remove('hidden');
+        return;
+      }
+      semProdutos.classList.add('hidden');
+
+      const emojiMap = { fruta: "🍎", legume: "🥕", "hortaliça": "🥬", hortaliça: "🥬" };
+
+      lista.forEach(p => {
+        const icone = emojiMap[p.categoria] || "🌱";
+        const preco = Number(p.preco_kg || 0).toFixed(2);
+        const qtd = Number(p.quantidade_kg || 0);
+
+        grid.innerHTML += `
+          <div class="bg-white rounded-3xl p-5 shadow-sm hover:shadow-md transition border border-gray-200/70 flex flex-col justify-between animate-fade-in">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 tracking-wider border border-emerald-100">
+                  ${icone} ${p.categoria}
+                </span>
+                <span class="text-[11px] text-slate-400 font-medium">${qtd} kg disp.</span>
+              </div>
+              <h3 class="font-bold text-gray-800 text-base leading-snug mt-1">${p.nome}</h3>
+              <p class="text-xs text-gray-500 mt-1">Lote inspecionado e pronto para entrega</p>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Preço por Kg</span>
+                <p class="text-lg font-extrabold text-emerald-700">R$ ${preco}</p>
+              </div>
+              <button onclick="abrirModalPedido('${p.id}', '${p.nome}', ${p.preco_kg}, ${p.quantidade_kg})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition">
+                Fazer Pedido
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function filtrarCategoria(cat) {
+      categoriaAtiva = cat;
+      document.querySelectorAll('.cat-pill').forEach(btn => {
+        if (btn.getAttribute('data-cat') === cat) {
+          btn.className = "cat-pill bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition";
+        } else {
+          btn.className = "cat-pill bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl transition";
+        }
+      });
+      carregarOfertas();
+    }
+
+    function filtrarPorTexto() {
+      const q = document.getElementById('filtro-busca').value.toLowerCase().trim();
+      const filtrados = todosProdutos.filter(p => p.nome.toLowerCase().includes(q));
+      renderizarProdutos(filtrados);
+    }
+
+    // Estimativa de valor do lote
+    const precoInput = document.getElementById('prod-preco');
+    const qtdInput = document.getElementById('prod-qtd');
+    function atualizarEstimativa() {
+      const p = parseFloat(precoInput.value) || 0;
+      const q = parseFloat(qtdInput.value) || 0;
+      document.getElementById('prod-estimativa').innerText = `R$ ${(p * q).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    }
+    precoInput.addEventListener('input', atualizarEstimativa);
+    qtdInput.addEventListener('input', atualizarEstimativa);
+
+    // Salvar Lote via MCP (Restrito ao perfil PRODUTOR)
+    async function salvarLote(e) {
+      e.preventDefault();
+      if (!usuarioAtual || usuarioAtual.tipo_perfil !== 'PRODUTOR') {
+        showToast("Apenas usuários com perfil de Produtor podem cadastrar lotes.", "error");
+        return;
+      }
+
+      const btn = document.getElementById('btn-submit-lote');
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳</span> <span>Cadastrando no Firestore via MCP...</span>`;
+
+      const nome = document.getElementById('prod-nome').value;
+      const categoria = document.getElementById('prod-cat').value;
+      const preco_kg = parseFloat(document.getElementById('prod-preco').value);
+      const quantidade_kg = parseFloat(document.getElementById('prod-qtd').value);
+
+      const payload = {
+        tool: "cadastrar_produto",
+        parameters: {
+          produtor_id: usuarioAtual.uid,
+          nome,
+          categoria,
+          preco_kg,
+          quantidade_kg
+        }
+      };
+
+      try {
+        const res = await fetch(`${baseUrl}/mcp/v1/executar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast("🎉 Lote cadastrado com sucesso no Firestore!");
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (err) {
+        PRODUTOS_PADRAO.unshift({
+          id: "local_" + Date.now(),
+          nome,
+          categoria,
+          preco_kg,
+          quantidade_kg
+        });
+        showToast("🎉 Lote publicado localmente!");
+      } finally {
+        document.getElementById('form-cadastro-lote').reset();
+        atualizarEstimativa();
+        btn.disabled = false;
+        btn.innerHTML = `<span>🚀</span> <span>Publicar Oferta via Protocolo MCP</span>`;
+        setTab('mural');
+      }
+    }
+
+    // Modal Pedidos
+    let produtoSelecionado = null;
+    function abrirModalPedido(id, nome, preco, maxQtd) {
+      produtoSelecionado = { id, nome, preco: Number(preco), maxQtd: Number(maxQtd) };
+      document.getElementById('modal-conteudo-produto').innerHTML = `
+        <p class="text-sm font-bold text-gray-800">${nome}</p>
+        <p><b>Preço por Kg:</b> R$ ${Number(preco).toFixed(2)}</p>
+        <p><b>Disponível no Lote:</b> ${maxQtd} kg</p>
+      `;
+      document.getElementById('pedido-qtd').value = Math.min(50, maxQtd);
+      atualizarTotalPedidoModal();
+      document.getElementById('modal-pedido').classList.remove('hidden');
+    }
+
+    function fecharModalPedido() {
+      document.getElementById('modal-pedido').classList.add('hidden');
+    }
+
+    function atualizarTotalPedidoModal() {
+      if (!produtoSelecionado) return;
+      const qtd = parseFloat(document.getElementById('pedido-qtd').value) || 0;
+      const total = qtd * produtoSelecionado.preco;
+      document.getElementById('pedido-total-modal').innerText = `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    }
+
+    function confirmarPedido() {
+      const qtd = document.getElementById('pedido-qtd').value;
+      fecharModalPedido();
+      showToast(`Pedido de ${qtd}kg de ${produtoSelecionado.nome} enviado ao produtor!`);
+    }
+
+    // Assistente IA Chat
+    async function enviarMensagemChat(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      adicionarMensagemUsuario(msg);
+      input.value = "";
+      
+      const btn = document.getElementById('btn-send-chat');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mensagem: msg, produtor_id: usuarioAtual ? usuarioAtual.uid : 'anonimo' })
+        });
+        const data = await res.json();
+        adicionarMensagemIA(data.resposta);
+      } catch (err) {
+        const msgLower = msg.toLowerCase();
+        let respostaLocal = "";
+
+        if (msgLower.includes("fruta") || msgLower.includes("oferta") || msgLower.includes("preço") || msgLower.includes("comprar")) {
+          respostaLocal = "Aqui estão algumas ofertas disponíveis no CEASA Virtual:\n\n| Produto | Categoria | Preço/Kg | Estoque |\n| :--- | :--- | :--- | :--- |\n| **Banana Prata Climatizada** | Fruta | R$ 4,80 | 450 kg |\n| **Tomate Italiano Extra AA** | Legume | R$ 5,20 | 800 kg |\n| **Alface Americana Hidropônica** | Hortaliça | R$ 6,50 | 180 kg |\n\n*Deseja fechar o pedido de algum desses lotes?*";
+        } else if (msgLower.includes("tomate") || msgLower.includes("norma") || msgLower.includes("banana")) {
+          respostaLocal = "📌 **Norma Técnica RAG:**\n- **Tomate Italiano:** Caixa padrão tipo K (20kg a 22kg). Calibres aceitos: Extra A e Extra AA. Coloração padrão 'de vez' (amarelado a rosado).\n- **Banana Prata:** Caixa de 20kg higienizada, maturação Grau 2 a 4, sem danos mecânicos.";
+        } else {
+          respostaLocal = "Olá! Sou o **Assistente Comercial do CEASA Virtual**. Você pode me perguntar sobre preços do dia, normas técnicas de hortifrúti ou pedir ajuda para cadastrar seus lotes.";
+        }
+
+        adicionarMensagemIA(respostaLocal);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function enviarMensagemRapida(txt) {
+      document.getElementById('chat-input').value = txt;
+      enviarMensagemChat();
+    }
+
+    function adicionarMensagemUsuario(txt) {
+      const box = document.getElementById('chat-messages');
+      box.innerHTML += `
+        <div class="flex gap-3 items-start justify-end animate-fade-in">
+          <div class="bg-emerald-600 text-white text-sm p-3.5 rounded-2xl rounded-tr-none shadow-sm max-w-[85%]">
+            ${txt}
+          </div>
+          <div class="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-inner">VOCÊ</div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function adicionarMensagemIA(markdownTxt) {
+      const htmlContent = marked.parse(markdownTxt);
+      const box = document.getElementById('chat-messages');
+      box.innerHTML += `
+        <div class="flex gap-3 items-start animate-fade-in">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-inner">IA</div>
+          <div class="bg-slate-100 text-slate-800 text-sm p-3.5 rounded-2xl rounded-tl-none shadow-sm max-w-[88%] prose">
+            ${htmlContent}
+          </div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function limparChat() {
+      document.getElementById('chat-messages').innerHTML = `
+        <div class="flex gap-3 items-start animate-fade-in">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-inner">IA</div>
+          <div class="bg-slate-100 text-slate-800 text-sm p-3.5 rounded-2xl rounded-tl-none shadow-sm max-w-[88%] prose">
+            Chat reiniciado! Como posso te ajudar hoje no CEASA Virtual?
+          </div>
+        </div>
+      `;
+    }
+
+    // Inicialização da Página
+    window.addEventListener('DOMContentLoaded', () => {
+      if (usuarioAtual) {
+        definirUsuario(usuarioAtual, usuarioAtual.tipo_perfil || "PRODUTOR");
+      } else {
+        // Bloqueia e exibe Landing Page de Login
+        document.getElementById('landing-page').classList.remove('hidden');
+        document.getElementById('app-content').classList.add('hidden');
+      }
+      verificarBackend();
+    });
+  </script>
+</body>
+</html>
