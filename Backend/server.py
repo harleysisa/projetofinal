@@ -14,11 +14,22 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KEY_PATH = os.environ.get("FIREBASE_KEY_PATH", os.path.join(BASE_DIR, "firebase-key.json"))
 
 # Inicializa Firebase Admin
+# Prioridade: 1) Variável de ambiente FIREBASE_CREDENTIALS (JSON string para deploy)
+#              2) Arquivo firebase-key.json local
+#              3) Application Default Credentials
 if not firebase_admin._apps:
-    if os.path.exists(KEY_PATH):
+    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS")
+    if firebase_creds_json:
+        # Deploy no Render.com: credenciais via variável de ambiente
+        cred_dict = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    elif os.path.exists(KEY_PATH):
+        # Desenvolvimento local: arquivo firebase-key.json
         cred = credentials.Certificate(KEY_PATH)
         firebase_admin.initialize_app(cred)
     else:
+        # Fallback: Application Default Credentials (GCP)
         firebase_admin.initialize_app()
 
 db = firestore.client()

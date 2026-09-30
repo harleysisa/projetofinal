@@ -1,6 +1,7 @@
 # Servidor Web e API
 Flask==3.0.0
 Flask-Cors==4.0.0
+gunicorn==21.2.0
 
 # Autenticação e Banco de Dados (Firestore)
 firebase-admin==6.2.0
